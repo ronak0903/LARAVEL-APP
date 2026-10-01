@@ -85,5 +85,6 @@ jobs:
           app-name: 'testlaravelapp'
           slot-name: 'Production'
           package: .
+          clean: true
           
           
