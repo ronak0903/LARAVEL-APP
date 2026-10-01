@@ -6,7 +6,11 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     libzip-dev \
-    && docker-php-ext-install zip
+    libpq-dev \
+    libonig-dev \
+    libxml2-dev \
+    && docker-php-ext-install zip pdo_pgsql pgsql mbstring xml bcmath \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
@@ -24,4 +28,4 @@ COPY apache.conf /etc/apache2/sites-available/000-default.conf
 
 EXPOSE 80
 
-CMD ["apache2-foreground"]
+CMD ["sh", "-c", "php artisan migrate --force --no-interaction; apache2-foreground"]
