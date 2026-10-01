@@ -57,6 +57,7 @@ jobs:
         with:
           name: php-app
           path: deploy_root
+          include-hidden-files: true
 
   deploy:
     runs-on: ubuntu-latest
@@ -86,5 +87,13 @@ jobs:
           slot-name: 'Production'
           package: .
           clean: true
-          
-          
+
+      - name: Run database migrations
+        # This runtime has no php-cli/SSH access, so migrations run via an
+        # HTTP deploy hook route in the app itself (routes/web.php) instead
+        # of `artisan migrate` out-of-band.
+        run: |
+          sleep 15
+          curl -sS -f -X POST \
+            -H "X-Migrate-Token: ${{ secrets.MIGRATE_TOKEN }}" \
+            https://testlaravelapp-hkd5b0dqeabrb7g7.uaenorth-01.azurewebsites.net/__deploy/migrate
