@@ -33,12 +33,30 @@ jobs:
         if: steps.check_files.outputs.files_exists == 'true'
         run: composer validate --no-check-publish && composer install --prefer-dist --no-progress
 
+      - name: Restructure app so public/ is the served webroot
+        # Azure App Service's PHP (Linux, Code deploy) serves straight out of the
+        # package root and its Nginx config can't be repointed at public/, so move
+        # public/'s contents to the package root and the rest of the app into a
+        # laravel/ subfolder, patching index.php's paths to match.
+        run: |
+          shopt -s dotglob
+          mkdir deploy_root
+          mkdir deploy_root/laravel
+          for item in *; do
+            case "$item" in
+              public|deploy_root|.git|.github) continue ;;
+            esac
+            mv "$item" deploy_root/laravel/
+          done
+          mv public/* deploy_root/
+          rmdir public
+          sed -i "s#__DIR__\.'/\.\./#__DIR__.'/laravel/#g" deploy_root/index.php
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: php-app
-          path: .
+          path: deploy_root
 
   deploy:
     runs-on: ubuntu-latest
