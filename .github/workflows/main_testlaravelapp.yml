@@ -51,6 +51,11 @@ jobs:
           mv public/* deploy_root/
           rmdir public
           sed -i "s#__DIR__\.'/\.\./#__DIR__.'/laravel/#g" deploy_root/index.php
+          # Azure's container-startup script only wires up PHP-FPM/Nginx
+          # routing when it finds composer.json at the deploy root, so keep a
+          # copy there purely as that marker; the real one (with vendor/)
+          # stays inside laravel/ for actual autoloading.
+          cp deploy_root/laravel/composer.json deploy_root/composer.json
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -91,9 +96,16 @@ jobs:
       - name: Run database migrations
         # This runtime has no php-cli/SSH access, so migrations run via an
         # HTTP deploy hook route in the app itself (routes/web.php) instead
-        # of `artisan migrate` out-of-band.
+        # of `artisan migrate` out-of-band. Container recycle + cold start
+        # after a deploy can take a couple of minutes, so retry with backoff.
         run: |
-          sleep 15
-          curl -sS -f -X POST \
-            -H "X-Migrate-Token: ${{ secrets.MIGRATE_TOKEN }}" \
-            https://testlaravelapp-hkd5b0dqeabrb7g7.uaenorth-01.azurewebsites.net/__deploy/migrate
+          for i in $(seq 1 12); do
+            if curl -sS -f -X POST \
+              -H "X-Migrate-Token: ${{ secrets.MIGRATE_TOKEN }}" \
+              https://testlaravelapp-hkd5b0dqeabrb7g7.uaenorth-01.azurewebsites.net/__deploy/migrate; then
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+          exit 1
